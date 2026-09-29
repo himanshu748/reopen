@@ -1,0 +1,7 @@
+node_modules
+.cache
+dist
+data
+.env
+.git
+.impeccable/review

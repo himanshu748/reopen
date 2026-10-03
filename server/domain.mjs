@@ -23,18 +23,20 @@ const stop = new Set(
     " ",
   ),
 );
+// Normalize only the comparison text. Stored source quotes remain verbatim.
+const comparisonText = (text) => text.normalize("NFKC").toLowerCase().replace(/[’‘]/g, "'");
+const topicText = (text) => comparisonText(text)
+  .replace(/\b(?:wi[ -]?fi|internet|network)\b/g, "connectivity")
+  .replace(/\b(?:venue|room)\b/g, "location");
 const tokens = (text) =>
   new Set(
-    text
-      .toLowerCase()
-      .replace(/wi[ -]?fi|internet|network/g, "connectivity")
-      .replace(/venue|room/g, "location")
+    topicText(text)
       .replace(/[^a-z0-9\s]/g, " ")
       .split(/\s+/)
       .filter((x) => x.length > 2 && !stop.has(x)),
   );
 export function classify(sentence, decision, source, projectTitle) {
-  const t = sentence.toLowerCase();
+  const t = comparisonText(sentence);
   const ds = tokens([...decision.assumptions, decision.reviewCondition].join(" "));
   const overlap = [...tokens(sentence)].filter((x) => ds.has(x));
   if (source.projectLabel && source.projectLabel.toLowerCase() !== projectTitle.toLowerCase())
@@ -50,13 +52,29 @@ export function classify(sentence, decision, source, projectTitle) {
       overlap,
     };
   if (
-    /\?|\b(what if|suppose|imagine|hypothetical|hypothetically|if we|if the|if our|would happen)\b/.test(
+    /\?|\b(if|unless|assuming|provided that|suppose|imagine|hypothetical|hypothetically|would happen)\b/.test(
       t,
     )
   )
     return {
       kind: "hypothetical",
       reason: "A question or conditional scenario does not establish a changed premise.",
+      overlap,
+    };
+  if (
+    /\b(maybe|might|perhaps|possibly|probably|i think|i heard|not sure|uncertain|unconfirmed|likely|could|(?:nobody|no one)\s+(?:said|confirmed|verified)|(?:not|never)\s+(?:yet\s+)?(?:been\s+)?(?:confirmed|verified|certain)|(?:isn't|wasn't|aren't|weren't|hasn't|haven't|hadn't|can't|cannot|couldn't|don't|doesn't|didn't)\s+(?:yet\s+)?(?:been\s+)?(?:confirm|confirmed|verify|verified|know|known))\b/.test(
+      t,
+    )
+  )
+    return {
+      kind: "uncertain",
+      reason: "The statement contains uncertainty; clarify before acting.",
+      overlap,
+    };
+  if (/\b(unchanged|no changes?|(?:not|never)\s+(?:yet\s+)?(?:(?:been|being|be|going to be)\s+)?(?:changed|cancelled|canceled|unavailable)|(?:isn't|wasn't|aren't|weren't|hasn't|haven't|hadn't|didn't)\s+(?:yet\s+)?(?:(?:been|being|be|going to be)\s+)?(?:changed|change|cancelled|canceled|unavailable))\b/.test(t))
+    return {
+      kind: "context",
+      reason: "The statement explicitly denies a change. Link a separate confirmed report if another premise changed.",
       overlap,
     };
   if (/\b(correction|correcting|i was wrong|actually|retract|ignore what|misunderstood)\b/.test(t))
@@ -66,18 +84,8 @@ export function classify(sentence, decision, source, projectTitle) {
       overlap,
     };
   if (
-    /\b(maybe|might|perhaps|possibly|probably|i think|i heard|not sure|uncertain|unconfirmed|likely|could)\b/.test(
-      t,
-    )
-  )
-    return {
-      kind: "uncertain",
-      reason: "The statement contains uncertainty; clarify before acting.",
-      overlap,
-    };
-  if (
     /\b(confirmed|no longer|will not|cannot|can't|changed|cancelled|canceled|unavailable|now|not available|won't|no connectivity|without connectivity)\b/.test(
-      t.replace(/wi[ -]?fi|internet|network/g, "connectivity"),
+      topicText(t),
     )
   )
     return {

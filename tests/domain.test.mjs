@@ -572,6 +572,22 @@ test("reopening retires competing pending reviews and superseding retires remain
   );
 });
 
+test("negated and conditional evidence cannot reopen a decision or rewrite its source quote", async (t) => {
+  const n = await notebook(t);
+  const decisionId = await draft(n);
+  await n.run("confirm_decision", { id: decisionId });
+  const quotes = ["The venue internet outage is not confirmed.", "The venue internet has not changed.", "Unless the venue internet is available, cancel the demo.", "The venue has not been cancelled.", "The venue hasn’t been cancelled.", "The venue internet was never unavailable.", "Nobody said the venue internet is unavailable."];
+  await n.run("import_sources", { sources: quotes.map((text, i) => source(`Conservative triage ${i}`, "2026-09-05T13:00:00Z", text)) });
+  assert.equal(n.project.decisions[0].status, "watching");
+  assert.deepEqual(n.project.candidates.map(c => c.kind), ["uncertain", "context", "hypothetical", "context", "context", "context", "uncertain"]);
+  for (const c of n.project.candidates) {
+    assert(quotes.includes(c.quote));
+    await n.run("disposition", { id: c.id, action: "reopen", confirmedChange: true, reason: "This statement must not bypass clarification." }, 400);
+  }
+  assert.equal(n.project.decisions[0].status, "watching");
+  assert.equal(n.project.candidates.every(c => c.status === "pending"), true);
+});
+
 test("hypothetical evidence cannot reopen a decision and stale notebook versions reject atomically", async (t) => {
   const n = await notebook(t);
   const decisionId = await draft(n);

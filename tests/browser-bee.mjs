@@ -162,6 +162,7 @@ try {
   await page.getByRole("button", { name: "New notebook", exact: true }).click();
   await page.getByLabel("Notebook name").fill("Second notebook · keep this selection");
   await page.getByRole("button", { name: "Create notebook", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Notebook created" }).waitFor();
   const secondId = await page.getByLabel("Choose notebook").inputValue();
   assert.notEqual(secondId, originalId);
   async function prepareDelayedImport() {

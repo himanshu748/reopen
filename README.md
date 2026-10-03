@@ -1,5 +1,7 @@
 # Reopen
 
+[Try the prototype workflow and read its Bee eligibility boundary](JUDGE-GUIDE.md).
+
 A private decision notebook: preserve a decision’s rationale, review later evidence against its assumptions, and approve an exact downstream checklist change. React/TypeScript UI; Node 22 SQLite backend.
 
 ## Run
@@ -60,7 +62,7 @@ docker build -t reopen .
 docker run --rm -p 4333:4333 -e APP_ORIGIN=https://reopen.example.com -v reopen-data:/app/data reopen
 ```
 
-Run this behind an HTTPS reverse proxy. This repository contains no deployment, public publication, cloud account setup, or third-party integration credentials.
+Run this behind an HTTPS reverse proxy. The source is public; no hosted deployment or real Bee-device demonstration has been verified. No third-party integration credentials are included.
 
 ## Import JSON
 

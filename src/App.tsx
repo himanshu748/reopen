@@ -167,6 +167,7 @@ function App() {
     [trail, setTrail] = useState<{ id: string; version?: number } | null>(null);
   const [sourceChecks, setSourceChecks] = useState<Record<string, boolean>>({});
   const formRef = useRef<HTMLDivElement>(null);
+  const notebookHeading = useRef<HTMLHeadingElement>(null);
   const viewEpoch = useRef(0);
   const interactionEpoch = useRef(0);
   const operationEpoch = useRef(0);
@@ -618,7 +619,7 @@ function App() {
                   {date(project.updatedAt)} <span className="divider">/</span>{" "}
                   {tab === "Decisions" ? "Decision journal" : tab}
                 </p>
-                <h1>
+                <h1 ref={notebookHeading} tabIndex={-1}>
                   {tab === "Decisions"
                     ? project.title
                     : tab === "Evidence"
@@ -923,6 +924,11 @@ function App() {
                     project={project}
                     candidate={candidate}
                     onOpenHistory={() => openTrail(candidate.decisionId, candidate.decisionVersion)}
+                    onOpenCurrentDecision={() => {
+                      navigate("Decisions");
+                      window.scrollTo({ top: 0, behavior: "instant" });
+                      requestAnimationFrame(() => notebookHeading.current?.focus({ preventScroll: true }));
+                    }}
                     busy={busy}
                     submit={(type, payload, message) =>
                       perform(() => command(type, payload), message)
@@ -1667,12 +1673,14 @@ function Review({
   project,
   candidate: c,
   onOpenHistory,
+  onOpenCurrentDecision,
   busy,
   submit,
 }: {
   project: Project;
   candidate: Candidate;
   onOpenHistory: () => void;
+  onOpenCurrentDecision: () => void;
   busy: boolean;
   submit: (type: string, data: any, message: string) => Promise<void>;
 }) {
@@ -1693,6 +1701,11 @@ function Review({
     [after, setAfter] = useState(c.proposal?.after || "");
   const stale = d.version !== c.decisionVersion && c.status === "pending";
   const reopenAllowed = ["reported_change", "correction", "manual"].includes(c.kind);
+  const checklistItem = project.checklist.find((item) => item.id === c.proposal?.itemId);
+  const decisionChanged = Boolean(c.proposal && d.version !== c.reopenedDecisionVersion);
+  const checklistChanged = Boolean(c.proposal && (!checklistItem ||
+    checklistItem.version !== c.proposal.itemVersion || checklistItem.text !== c.proposal.before));
+  const proposalStale = c.proposal?.status !== "approved" && (decisionChanged || checklistChanged);
   return (
     <article className="review-detail">
       <div className="review-title">
@@ -1834,7 +1847,24 @@ function Review({
       {c.proposal && (
         <section className="change-editor">
           <h3>The checklist change</h3>
-          <p>The original task remains unchanged until you approve its replacement.</p>
+          <p>{c.proposal.status === "approved"
+            ? "This records the exact change approved at the time."
+            : proposalStale
+              ? "This saved proposal is preserved for reference and can no longer be approved."
+              : "The original task remains unchanged until you approve its replacement."}</p>
+          {proposalStale && (
+            <div className="notice-box" role="status">
+              <h3>This proposal needs a new review.</h3>
+              {decisionChanged && <p>The decision changed after reopening: it is now v{d.version} ({labels(d.status)}).</p>}
+              {checklistChanged && <p>The checklist item changed after this proposal was created.
+                {checklistItem && <> Current item · v{checklistItem.version}: {checklistItem.text} ({checklistItem.done ? "complete" : "incomplete"}).</>}
+              </p>}
+              <p>Review the current decision, revise and confirm it to compare the source again, then reopen fresh evidence before drafting a replacement. This proposal cannot overwrite the current checklist.</p>
+              <button className="text-button" onClick={onOpenCurrentDecision}>
+                Return to decisions <Icon name="arrow" size={16} />
+              </button>
+            </div>
+          )}
           <div className="diff">
             <span>Before</span>
             <p>{c.proposal.before}</p>
@@ -1845,7 +1875,7 @@ function Review({
               <p className="replacement">{c.proposal.after}</p>
             )}
           </div>
-          {c.proposal.status !== "approved" && (
+          {c.proposal.status !== "approved" && !proposalStale && (
             <>
               <Field label="Replacement checklist text">
                 <textarea

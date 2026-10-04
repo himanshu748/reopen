@@ -90,6 +90,8 @@ Use **Follow this decision’s history** beneath a decision, or **View decision 
 Only recorded versions appear. Older partial records are marked when wording was not saved; Reopen never reconstructs them from the current decision. The reader respects reduced motion and loads no 3D dependency. `node tests/browser-interactions.mjs` verifies a fresh UI-saved workflow including imports, confirmation, reopening, checklist approval, revision, historical/current selection, keyboard and mobile/reduced-motion behavior against a disposable server on port 4433. Set `HMR_PORT=24433` for that dev server to avoid another local Vite websocket; production does not use HMR.
 
 
+Unapproved checklist proposals show a recovery notice when the linked decision or checklist item version changes. Their saved before/after text remains historical evidence; approval controls return only for a fresh review. `node tests/browser-proposal-recovery.mjs` uses an isolated in-memory server and fictional examples to check both stale paths, the full revision/confirmation/reopening/approval recovery, historical approved changes and mobile layout. Run `npm run build` first; use the existing Playwright Chromium cache. Set `SCREENSHOT_PATH` optionally to save the changed review screen.
+
 ## Connect real Bee conversations
 
 The integration uses the official [Bee CLI loopback proxy](https://docs.bee.computer/docs/proxy). Authenticate the CLI on the same trusted machine as this Node process, then run `bee proxy --port 8787`. Keep that unauthenticated proxy bound to loopback. Reopen uses fixed read endpoints only; it never forwards browser-provided URLs or writes to Bee.

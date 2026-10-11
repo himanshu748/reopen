@@ -6,6 +6,7 @@ import { writeFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { createApp } from "../server/index.mjs";
 import { baseline, later, conversation, fixtureFetch } from "./bee-fixtures.mjs";
+import { openNotebookTab } from "./browser-navigation.mjs";
 const calls = [],
   records = new Map([
     [101, conversation(101)],
@@ -49,14 +50,7 @@ async function capture(name) {
   );
 }
 async function tab(name) {
-  if (
-    await page
-      .getByRole("button", { name: "Toggle navigation", exact: true })
-      .isVisible()
-      .catch(() => false)
-  )
-    await page.getByRole("button", { name: "Toggle navigation", exact: true }).click();
-  await page.getByRole("button", { name, exact: true }).click();
+  await openNotebookTab(page, name);
 }
 try {
   await page.goto(base);

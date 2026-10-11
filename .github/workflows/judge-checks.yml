@@ -26,6 +26,7 @@ jobs:
       - name: Verify production UI using isolated fictional fixtures
         run: |
           node tests/browser-bee.mjs
+          node tests/browser-mobile-reload.mjs
           node tests/browser-save-race.mjs
           node tests/browser-operation-race.mjs
           node tests/browser-load-recovery.mjs

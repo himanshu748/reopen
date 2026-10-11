@@ -50,3 +50,7 @@ Observed implementation friction: local sandbox policy initially prevented dispo
 
 
 The final fixture browser walkthrough passed on desktop and at 390px width, including keyboard wording confirmation, reduced motion, selected imports, paired review, checklist approval and disconnect/reload. A delayed-response regression holds actual successful HTTP import responses during notebook and account changes; old receipts and source content never replace the new view. The connection remounts for a changed session/notebook/navigation generation and keeps response feedback local to its initiating view. The inspected screenshots remain readable with no horizontal overflow. This validation uses fixtures and is not user or device feedback.
+
+## Assistant decision review — October 2026
+
+The Assistant surface follows the same paper-and-wine notebook design. Connection consent names the notebook and exact permission. Read-only is the default; a draft permission never grants approval. Real protocol operations and returned decision/evidence data form the demonstration, without a fabricated chat transcript or an Alexa device claim. Tokens remain transient, hidden from persistent storage and separated from shareable evidence. Account and notebook switches clear the client connection.

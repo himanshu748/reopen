@@ -1,0 +1,257 @@
+/** The actual browser UI speaks MCP over HTTP; all notebook content is illustrative. */
+import assert from "node:assert/strict";
+import { once } from "node:events";
+import { createServer } from "node:net";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { chromium } from "playwright";
+import { createApp } from "../server/index.mjs";
+
+const reservation = createServer();
+reservation.listen(0, "127.0.0.1");
+await once(reservation, "listening");
+const port = reservation.address().port;
+await new Promise((resolve) => reservation.close(resolve));
+const base = `http://127.0.0.1:${port}`;
+const app = await createApp({ dbPath: ":memory:", noVite: true, production: false, origin: base });
+app.server.listen(port, "127.0.0.1");
+await once(app.server, "listening");
+const browser = await chromium.launch({ headless: true });
+const videoDir = process.env.REOPEN_DEMO_DIR || join(tmpdir(), "reopen-mcp-raw-demo");
+if (process.env.REOPEN_RECORD_DEMO) mkdirSync(videoDir, { recursive: true });
+const initialSize = process.env.REOPEN_DEMO_DESKTOP ? { width: 1440, height: 900 } : { width: 390, height: 844 };
+const context = await browser.newContext({ viewport: initialSize,
+  ...(process.env.REOPEN_RECORD_DEMO ? { recordVideo: { dir: videoDir, size: initialSize } } : {}) });
+const page = await context.newPage();
+page.setDefaultTimeout(15000);
+const errors = [];
+page.on("pageerror", (error) => errors.push(error.message));
+const hold = async () => {
+  if (process.env.REOPEN_RECORD_DEMO)
+    await page.waitForTimeout(Number(process.env.REOPEN_DEMO_HOLD_MS || 900));
+};
+const show = async (selector) => {
+  if (process.env.REOPEN_RECORD_DEMO) await page.locator(selector).scrollIntoViewIfNeeded();
+};
+async function openNotebookTab(name) {
+  const toggle = page.locator('button[aria-label="Toggle navigation"]');
+  if (await toggle.isVisible() && await toggle.getAttribute("aria-expanded") !== "true") await toggle.click();
+  await page.locator('nav[aria-label="Notebook sections"] button').filter({ hasText: name }).click();
+}
+const startedAt = Date.now(), markers = [];
+const mark = (label) => { if (process.env.REOPEN_RECORD_DEMO) markers.push({ atMs: Date.now() - startedAt, label }); };
+try {
+  await page.goto(base);
+  await page.getByLabel("Your name", { exact: true }).fill("Assistant browser fixture");
+  await page.getByLabel("Email", { exact: true }).fill("assistant-browser@example.test");
+  await page.getByLabel("Password", { exact: true }).fill("Disposable-assistant-2026");
+  await page.getByRole("button", { name: "Create my private account" }).click();
+  await page.getByRole("button", { name: "Explore an illustrative example" }).click();
+  mark("Illustrative notebook ready");
+  await hold();
+  await openNotebookTab("Assistant");
+  await page.getByLabel("MCP endpoint").waitFor();
+  assert.equal(await page.getByLabel("MCP endpoint").inputValue(), base + "/mcp");
+  assert.equal(await page.getByLabel(/Allow assistant to save unapproved checklist drafts/).isChecked(), false);
+  await page.getByLabel("Name this connection").fill("Browser MCP check");
+  await page.getByRole("button", { name: "Create access" }).click();
+  await page.getByRole("region", { name: "New access secret" }).waitFor();
+  await show(".assistant-secret");
+  await hold();
+  const token = await page.locator('input[aria-label="New access secret"]').inputValue();
+  assert.ok(token.length > 20);
+  await page.getByRole("button", { name: "Connect", exact: true }).click();
+  await page.getByText("4 tools returned by this MCP server").waitFor();
+  mark("Real MCP connection initialized and tools listed");
+  await show(".assistant-client");
+  await hold();
+  await page.getByRole("button", { name: "Run tool" }).click();
+  const result = page.getByRole("region", { name: "MCP tool result" });
+  await result.waitFor();
+  await result.locator(".assistant-result-highlight h4").waitFor();
+  mark("MCP overview returned");
+  assert.ok((await result.textContent()).includes("sourceContentWarning"));
+  await show(".assistant-tool-result");
+  await hold();
+  if (!process.env.REOPEN_RECORD_DEMO) {
+  let releaseList, sawList;
+  const listSeen = new Promise((resolve) => { sawList = resolve; });
+  const listGate = new Promise((resolve) => { releaseList = resolve; });
+  const holdList = async (route) => {
+    if (JSON.parse(route.request().postData() || "{}").method !== "tools/list") return route.continue();
+    const response = await route.fetch();
+    sawList();
+    await listGate;
+    await route.fulfill({ response });
+  };
+  await page.route("**/mcp", holdList);
+  await page.getByRole("button", { name: "Connect", exact: true }).click();
+  await listSeen;
+  await page.getByLabel("Access secret", { exact: true }).fill("replaced-during-request");
+  releaseList();
+  await page.waitForFunction(() => document.querySelector(".assistant-client .assistant-scope")?.textContent === "Disconnected");
+  assert.equal(await page.getByText("4 tools returned by this MCP server").count(), 0);
+  await page.unroute("**/mcp", holdList);
+  await page.getByLabel("Access secret", { exact: true }).fill(token);
+  await page.getByRole("button", { name: "Connect", exact: true }).click();
+  await page.getByText("4 tools returned by this MCP server").waitFor();
+  }
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  const projectId = await page.getByLabel("Choose notebook").inputValue();
+  let project = JSON.parse(app.db.prepare("SELECT document FROM projects WHERE id=?").get(projectId).document);
+  const review = project.candidates.find((candidate) => candidate.kind === "reported_change");
+  assert.ok(review);
+  assert.equal(review.status, "pending");
+  const originalChecklist = project.checklist[0].text;
+  await page.getByLabel("Tool", { exact: true }).selectOption("reopen_explain_decision");
+  await page.getByLabel("Decision", { exact: true }).selectOption(project.decisions[0].id);
+  await page.getByRole("button", { name: "Run tool" }).click();
+  await result.getByText("Original rationale").waitFor();
+  mark("MCP decision rationale returned");
+  assert.ok((await result.textContent()).includes(project.decisions[0].rationale));
+  await show(".assistant-tool-result");
+  await hold();
+  await page.getByLabel("Tool", { exact: true }).selectOption("reopen_review_evidence");
+  await page.getByLabel("Evidence review").selectOption(review.id);
+  await page.getByRole("button", { name: "Run tool" }).click();
+  await result.getByText("Evidence quote").waitFor();
+  mark("MCP contrary evidence returned");
+  assert.ok((await result.textContent()).includes(review.quote));
+  await show(".assistant-tool-result");
+  await hold();
+  await page.getByLabel("Name this connection").fill("Browser draft check");
+  await page.getByLabel(/Allow assistant to save unapproved checklist drafts/).check();
+  await page.getByRole("button", { name: "Create access" }).click();
+  await page.getByRole("button", { name: "Revoke Browser draft check" }).waitFor();
+  const draftToken = await page.locator('input[aria-label="New access secret"]').inputValue();
+  await page.getByRole("button", { name: "Connect", exact: true }).click();
+  await page.getByText("4 tools returned by this MCP server").waitFor();
+  if (!process.env.REOPEN_RECORD_DEMO) {
+    let releaseCall, sawCall, callFinished;
+    const callSeen = new Promise((resolve) => { sawCall = resolve; });
+    const callGate = new Promise((resolve) => { releaseCall = resolve; });
+    const callDone = new Promise((resolve) => { callFinished = resolve; });
+    const holdCall = async (route) => {
+      const body = JSON.parse(route.request().postData() || "{}");
+      if (body.method !== "tools/call" || body.params?.name !== "reopen_notebook_overview")
+        return route.continue();
+      const response = await route.fetch();
+      sawCall();
+      await callGate;
+      await route.fulfill({ response });
+      callFinished();
+    };
+    await page.route("**/mcp", holdCall);
+    await page.getByLabel("Tool", { exact: true }).selectOption("reopen_notebook_overview");
+    await page.getByRole("button", { name: "Run tool" }).click();
+    await callSeen;
+    await page.getByRole("button", { name: "Revoke Browser MCP check" }).click();
+    await page.getByRole("button", { name: "Revoke Browser MCP check" }).waitFor({ state: "hidden" });
+    releaseCall();
+    await callDone;
+    await page.unroute("**/mcp", holdCall);
+    assert.equal(await page.getByRole("button", { name: "Run tool" }).isDisabled(), false);
+  } else {
+  await page.getByRole("button", { name: "Revoke Browser MCP check" }).click();
+  await page.getByRole("button", { name: "Revoke Browser MCP check" }).waitFor({ state: "hidden" });
+  }
+  assert.equal(await page.locator('input[aria-label="New access secret"]').inputValue(), draftToken);
+  assert.equal(await page.getByLabel("Access secret", { exact: true }).inputValue(), draftToken);
+  await page.getByText("4 tools returned by this MCP server").waitFor();
+  await page.getByLabel("Tool", { exact: true }).selectOption("reopen_draft_checklist_change");
+  await page.getByLabel("Evidence review").selectOption(review.id);
+  await page.getByLabel("Exact replacement checklist text").fill("Prepare an offline walkthrough");
+  await page.getByRole("button", { name: "Run tool" }).click();
+  await page.getByRole("alert").filter({ hasText: /reopen|review/i }).waitFor();
+  mark("Draft refused before owner review");
+  await show(".assistant-error");
+  await hold();
+  await openNotebookTab("Evidence");
+  await page.locator(".candidate-row").filter({ hasText: "Reported change" }).click();
+  await page.getByLabel("Reason for your review").fill("Checked the illustrative contrary evidence.");
+  await page.getByLabel("I reviewed the evidence and confirm that a premise changed.").check();
+  await page.getByRole("button", { name: "Reopen decision", exact: true }).click();
+  await page.getByRole("heading", { name: "The checklist change" }).waitFor();
+  mark("Owner reopened decision in Reopen UI");
+  await show(".change-editor");
+  await hold();
+  await openNotebookTab("Assistant");
+  await page.getByLabel("MCP endpoint").waitFor();
+  await page.getByLabel("Access secret").fill(draftToken);
+  await page.getByRole("button", { name: "Connect", exact: true }).click();
+  await page.getByText("4 tools returned by this MCP server").waitFor();
+  await page.getByLabel("Tool", { exact: true }).selectOption("reopen_draft_checklist_change");
+  await page.getByLabel("Evidence review").selectOption(review.id);
+  await page.getByLabel("Exact replacement checklist text").fill("Prepare an offline walkthrough");
+  await page.getByRole("button", { name: "Run tool" }).click();
+  await page.getByRole("region", { name: "MCP tool result" }).getByText("Awaiting owner approval").waitFor();
+  mark("MCP checklist replacement drafted for approval");
+  await show(".assistant-tool-result");
+  await hold();
+  project = JSON.parse(app.db.prepare("SELECT document FROM projects WHERE id=?").get(projectId).document);
+  assert.equal(project.checklist[0].text, originalChecklist);
+  await page.getByRole("button", { name: "Refresh notebook" }).click();
+  await openNotebookTab("Evidence");
+  await page.locator(".candidate-row").filter({ hasText: "Reported change" }).click();
+  await page.getByText("Prepare an offline walkthrough", { exact: true }).first().waitFor();
+  await page.getByRole("button", { name: "Approve checklist change", exact: true }).click();
+  await page.getByText("Approved and recorded. The checklist was updated.").waitFor();
+  mark("Owner approved exact replacement in Reopen UI");
+  await show(".approved-note");
+  project = JSON.parse(app.db.prepare("SELECT document FROM projects WHERE id=?").get(projectId).document);
+  assert.equal(project.checklist[0].text, "Prepare an offline walkthrough");
+  await openNotebookTab("Checklist");
+  await page.getByText("Prepare an offline walkthrough", { exact: true }).first().waitFor();
+  await hold();
+  await openNotebookTab("Assistant");
+  await page.getByLabel("MCP endpoint").waitFor();
+  await page.getByRole("button", { name: "Revoke Browser draft check" }).click();
+  mark("Assistant grants revoked");
+  await show(".assistant-grants");
+  await hold();
+  await page.getByText("No active connections for this notebook.").waitFor();
+  assert.equal(await page.getByLabel("Access secret").inputValue(), "");
+  if (!process.env.REOPEN_DEMO_POLISHED) {
+  if (await page.getByRole("button", { name: "Toggle navigation" }).isVisible())
+    await page.getByRole("button", { name: "Toggle navigation" }).click();
+  await page.getByRole("button", { name: "New notebook", exact: true }).click();
+  await page.getByLabel("Notebook name").fill("Second assistant notebook");
+  await page.getByRole("button", { name: "Create notebook", exact: true }).click();
+  await openNotebookTab("Assistant");
+  await page.getByLabel("MCP endpoint").waitFor();
+  assert.equal(await page.getByRole("region", { name: "New access secret" }).count(), 0);
+  assert.equal(await page.getByLabel("Access secret").inputValue(), "");
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.goto(`${base}/?project=${projectId}&review=${review.id}`);
+  await page.locator(".auth-tabs").getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByLabel("Email", { exact: true }).fill("assistant-browser@example.test");
+  await page.getByLabel("Password", { exact: true }).fill("Disposable-assistant-2026");
+  await page.locator("form").getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.getByRole("heading", { name: "Keep the demo online-only", level: 2 }).waitFor();
+  assert.equal(await page.getByLabel("Choose notebook").inputValue(), projectId);
+  assert.equal(await page.locator('nav[aria-label="Notebook sections"] button.active').innerText(), "Evidence");
+  assert.equal(new URL(page.url()).searchParams.has("review"), false);
+  await page.goto(`${base}/?project=${projectId}&review=${review.id}`);
+  await page.getByRole("heading", { name: "Keep the demo online-only", level: 2 }).waitFor();
+  assert.equal(new URL(page.url()).searchParams.has("review"), false);
+  await openNotebookTab("Assistant");
+  await page.getByRole("button", { name: "Refresh notebook" }).click();
+  await page.getByLabel("MCP endpoint").waitFor();
+  assert.equal(await page.locator('nav[aria-label="Notebook sections"] button.active').innerText(), "Assistant");
+  }
+  assert.deepEqual(errors, []);
+  console.log("PASS: browser grant, MCP reads and guarded draft, owner approval, revoke, notebook isolation, mobile and desktop layout.");
+} finally {
+  await context.close();
+  if (process.env.REOPEN_RECORD_DEMO) {
+    const path = await page.video().path();
+    writeFileSync(path + ".markers.json", JSON.stringify(markers, null, 2));
+    console.log(`Raw browser video: ${path}`);
+  }
+  await browser.close();
+  await app.close();
+}

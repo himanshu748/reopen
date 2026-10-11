@@ -1,8 +1,8 @@
 # Reopen
 
-[Try the prototype workflow and read its Bee eligibility boundary](JUDGE-GUIDE.md).
+[Try the Alexa+ track MCP workflow](JUDGE-GUIDE.md).
 
-A private decision notebook: preserve a decision’s rationale, review later evidence against its assumptions, and approve an exact downstream checklist change. React/TypeScript UI; Node 22 SQLite backend.
+A private decision notebook: preserve a decision’s rationale, review later evidence against its assumptions, and approve an exact downstream checklist change. React/TypeScript UI; Node 22 SQLite backend. A notebook-scoped MCP connection lets an assistant read the original reasoning and later evidence, then save an unapproved checklist proposal after the owner reopens the decision.
 
 ## Run
 
@@ -77,6 +77,8 @@ An object with a `sources` array is also accepted. Maximum 20 sources per import
 - `server/domain.mjs`: pure notebook commands and conservative triage.
 - `server/index.mjs`: SQLite, authentication, owner isolation, HTTP and production static serving.
 - `server/adapters.mjs`: bounded official Bee proxy reads and processed conversation normalization.
+- `server/mcp-routes.mjs`: scoped assistant access and Streamable HTTP MCP tools.
+- `src/AssistantConnection.tsx`: connection consent, actual browser MCP client and revocation.
 - `server/bee-routes.mjs`: private connection consent, selected imports, status, and disconnect lifecycle.
 - `src/App.tsx`, `src/style.css`: accessible forms, private workspace and responsive decision journal.
 - `tests/`: domain/API regressions and the optional browser walkthrough.
@@ -108,19 +110,41 @@ Each request is explicit, time bounded and size limited. Last-checked time, sani
 
 This connector is for one operator’s Bee account on a trusted local host. It is **not** a multi-user Bee OAuth service. A generic Docker container cannot reach a host-side loopback proxy through `127.0.0.1`; run Node beside the official CLI for the integration, or design a separate authenticated deployment transport. Do not expose the proxy or relax the loopback restriction. No Bee token is stored by Reopen or sent to the browser.
 
-## Two-minute runtime demo
+## Alexa+ track: a real MCP client, no device required
 
-Before recording, obtain permission for the actual Bee-device or Apple-Watch-Bee recordings and let Bee finish processing them. Staged conversations must be described as staged. Never substitute the bundled fixtures as proof of real-device use.
+Reopen targets the **Alexa+ self-hosted MCP route**, using Streamable HTTP at `/mcp` and protocol `2025-11-25`. The Assistant view is a real web MCP client: it initializes the connection, discovers tools and calls them against this running server. It is not connected to a physical Echo or Amazon's gated Alexa+ developer console. Its structured controls are not presented as an LLM conversation.
 
-- **0:00–0:25:** Open Sources, connect and retrieve a real processed planning conversation. Show the returned source reference and context, then the confirmed decision and assumption linked to a checklist item.
-- **0:25–0:55:** Retrieve the later conversation. Show a hypothetical separated from an explicit changed-premise report. Open the reported change with its original rationale and exact source wording.
-- **0:55–1:30:** Record the owner’s judgment, reopen the decision, draft the exact checklist replacement and approve it separately.
-- **1:30–2:00:** Recheck the same conversation to show unchanged-source deduplication. Open decision history and the approved before/after record. Show that disconnect keeps the notebook evidence.
+The [official FAQ](https://amazonappdev2026.devpost.com/details/faqs) permits a locally runnable public repository plus a demo video and explicitly accepts a web page making real MCP initialize, tools-list and tools-call requests. No Bee device is required for this track. The optional Bee connector remains separate and has no real-device verification claim.
 
-The remaining external gate is actual Bee device/account access and a verified runtime demonstration. No live device, customer feedback, eligibility or submission result is claimed.
+### Connect an assistant
 
-Use [BEE-VERIFICATION.md](./BEE-VERIFICATION.md) for the short operator checklist and the exact distinction between a local rehearsal and a real-device demonstration.
+Open a notebook's **Assistant** view. Create a read-only connection, or explicitly allow unapproved checklist drafts. Copy the one-time secret to your own temporary secure location before leaving the view; navigation and refresh clear the browser client, so paste it again to reconnect. Access is scoped to that one notebook, expires after one hour, can be revoked, and is displayed only once. The server stores a token hash. Keep the credential private; never put it in a URL, repository or recording.
 
+The web client keeps its credential only in memory. An external compatible MCP client can use the displayed endpoint with an `Authorization: Bearer <token>` header. Cookie login alone cannot authorize MCP requests. Remote deployment requires HTTPS; local judging uses loopback. Without an explicit `APP_ORIGIN`, development MCP requests accept only `localhost` and `127.0.0.1` on the configured port. For a LAN/custom hostname, explicitly configure its exact `APP_ORIGIN`; the request Host header is never used to widen access.
+
+Available tools:
+
+| Tool | Purpose |
+| --- | --- |
+| `reopen_notebook_overview` | List the selected notebook's decisions, reviews and current version. |
+| `reopen_explain_decision` | Read the original reasoning, source quote and saved history. |
+| `reopen_review_evidence` | Compare later evidence with the preserved decision snapshot. |
+| `reopen_draft_checklist_change` | Save an exact unapproved replacement after the owner has reopened the decision, if explicitly allowed. |
+
+There is no MCP tool to reopen a decision, approve a checklist change, import a source or run arbitrary commands. Reopen remains the owner's approval surface. Quotes are untrusted evidence, not assistant instructions. Concurrent changes reject stale writes instead of overwriting newer work.
+
+### Runtime demonstration
+
+1. Choose the clearly labeled illustrative example, **The demo room**. This is fictional manual data, not Bee data.
+2. In Assistant, connect and load the notebook overview. Ask for the online-only decision's rationale and its original reliable-internet assumption using the real tool controls.
+3. Read the later evidence. The hypothetical question and explicit no-Wi-Fi report remain separate, with exact quotes and provenance.
+4. In Evidence, record your judgment and reopen the reported change. Return to Assistant, refresh the notebook version if needed, paste the copied secret and reconnect, then draft: **Prepare an offline product walkthrough before the venue demo**.
+5. Refresh the notebook after the MCP draft, then review the exact before/after in Evidence and approve separately. Open history to see the preserved original reasoning and approved consequence.
+6. Revoke the assistant connection. Further tool calls must fail.
+
+Reopen is distinct from Understudy: Reopen preserves a decision across time and governs a change to its downstream checklist; Understudy rehearses equipment-lending requests against policy gaps. The sponsor makes the final determination on substantially different entries.
+
+For optional future Bee verification, see [BEE-VERIFICATION.md](BEE-VERIFICATION.md). It is not a prerequisite for the Alexa+ workflow.
 
 ## Connector verification and delayed responses
 

@@ -7,6 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { Problem, str, fail, newProject, illustrativeProject, applyCommand } from "./domain.mjs";
 import { integrationStatus } from "./adapters.mjs";
 import { createBeeRoutes } from "./bee-routes.mjs";
+import { createMcpRoutes } from "./mcp-routes.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const token = () => randomBytes(32).toString("base64url");
 const digest = (x) => createHash("sha256").update(x).digest("hex");
@@ -30,6 +31,17 @@ export async function createApp(options = {}) {
     proxyUrl: options.beeProxyUrl ?? process.env.BEE_PROXY_URL,
     ownerId: options.beeOwnerId ?? process.env.REOPEN_BEE_OWNER_ID,
     fetchImpl: options.beeFetch,
+  });
+  const listenHost = process.env.HOST || "127.0.0.1";
+  const advertisedHost = ["0.0.0.0", "::"].includes(listenHost) ? "127.0.0.1" : listenHost;
+  const configuredOrigin = options.origin || process.env.APP_ORIGIN;
+  const port = Number(process.env.PORT || 4333);
+  const mcpRoutes = createMcpRoutes({
+    db,
+    origin: configuredOrigin || `http://${advertisedHost}:${port}`,
+    alternateOrigins: !production && !configuredOrigin
+      ? [`http://127.0.0.1:${port}`, `http://localhost:${port}`]
+      : [],
   });
   const attempts = new Map();
   let vite = null;
@@ -61,6 +73,7 @@ export async function createApp(options = {}) {
     try {
       const url = new URL(req.url, "http://localhost");
       const route = url.pathname;
+      if (route === "/mcp") return await mcpRoutes.mcpRoute(req, res);
       if (route === "/api/health")
         return send(200, { ok: true, storage: "sqlite", integrations: integrationStatus });
       if (!route.startsWith("/api/")) {
@@ -193,6 +206,7 @@ export async function createApp(options = {}) {
         return send(200, { user: { id: user.id, email: user.email, name: user.name }, csrf });
       }
       const user = currentUser();
+      if (mcpRoutes.accessRoute(route, req, body, user, send)) return;
       if (await beeRoutes(route, req, body, user, send)) return;
       if (route === "/api/logout" && req.method === "POST") {
         db.prepare("DELETE FROM sessions WHERE token=?").run(digest(sessionCookie));

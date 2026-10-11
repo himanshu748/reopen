@@ -25,6 +25,7 @@ jobs:
         run: npx playwright install --with-deps chromium --only-shell
       - name: Verify production UI using isolated fictional fixtures
         run: |
+          node tests/browser-assistant.mjs
           node tests/browser-bee.mjs
           node tests/browser-mobile-reload.mjs
           node tests/browser-save-race.mjs

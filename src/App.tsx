@@ -11,8 +11,9 @@ import {
 import type { Candidate, Decision, Project, Summary, User } from "./types";
 import DecisionTrail from "./DecisionTrail";
 import BeeConnection from "./BeeConnection";
+import AssistantConnection from "./AssistantConnection";
 import { sourceOrigin } from "./types";
-type Tab = "Decisions" | "Evidence" | "Checklist" | "Sources" | "Activity";
+type Tab = "Decisions" | "Evidence" | "Checklist" | "Sources" | "Assistant" | "Activity";
 type Panel = { type: string; decision?: Decision };
 const kinds: Record<string, string> = {
   reported_change: "Reported change",
@@ -26,6 +27,12 @@ const kinds: Record<string, string> = {
 const date = (d: string) =>
   new Date(d).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 const labels = (text: string) => text.replaceAll("_", " ");
+function consumeReviewLink() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("project");
+  url.searchParams.delete("review");
+  window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+}
 const projectSummary = (p: Project): Summary => ({
   id: p.id,
   title: p.title,
@@ -65,6 +72,7 @@ function Icon({ name, size = 20 }: { name: string; size?: number }) {
         <path d="M4 5h16M4 12h16M4 19h16M8 3v4m7 3v4m-5 3v4" />
       </>
     ),
+    assistant: <><path d="M5 7h14v10H5zM9 17v3m6-3v3M9 11h.01M15 11h.01M9 14h6" /><path d="M9 4h6m-3 0V2" /></>,
     plus: <path d="M12 5v14M5 12h14" />,
     arrow: <path d="M4 12h16m-6-6 6 6-6 6" />,
     close: <path d="m6 6 12 12M6 18 18 6" />,
@@ -202,6 +210,15 @@ function App() {
       setProject(result.project);
       setFailedLoad("");
       localStorage.setItem("reopen:last-notebook", id);
+      const link = new URLSearchParams(window.location.search);
+      const linkedReview = link.get("review");
+      if (link.get("project") === id && linkedReview &&
+        result.project.candidates.some((candidate: Candidate) => candidate.id === linkedReview)) {
+        setTab("Evidence");
+        setSelected(linkedReview);
+        consumeReviewLink();
+      }
+      return true;
     } catch (e) {
       if (epoch === viewEpoch.current) {
         setFailedLoad(id);
@@ -225,10 +242,21 @@ function App() {
           if (!active) return;
           setProjects(r.projects);
           const last = localStorage.getItem("reopen:last-notebook");
-          const id = r.projects.find((p: Summary) => p.id === last)?.id || r.projects[0]?.id;
+          const link = new URLSearchParams(window.location.search);
+          const linkedProject = link.get("project");
+          const linkedReview = link.get("review");
+          const id = r.projects.find((p: Summary) => p.id === linkedProject)?.id ||
+            r.projects.find((p: Summary) => p.id === last)?.id || r.projects[0]?.id;
           if (id) {
             const p = await fetch("/api/projects/" + id).then((r) => r.json());
-            if (active) setProject(p.project);
+            if (active) {
+              setProject(p.project);
+              if (id === linkedProject && p.project?.candidates.some((c: Candidate) => c.id === linkedReview)) {
+                setTab("Evidence");
+                setSelected(linkedReview || "");
+                consumeReviewLink();
+              }
+            }
           }
         }
       })
@@ -358,7 +386,10 @@ function App() {
             setCsrf(s.csrf);
             const r = await api("/projects");
             setProjects(r.projects);
-            if (r.projects[0]) return loadProject(r.projects[0].id);
+            const link = new URLSearchParams(window.location.search);
+            const linkedProject = link.get("project");
+            const target = r.projects.find((p: Summary) => p.id === linkedProject) || r.projects[0];
+            if (target) return loadProject(target.id);
           }, "Your private notebook is ready.")
         }
       />
@@ -415,14 +446,14 @@ function App() {
           </button>
         </div>
         <nav aria-label="Notebook sections">
-          {(["Decisions", "Evidence", "Checklist", "Sources", "Activity"] as Tab[]).map((t, i) => (
+          {(["Decisions", "Evidence", "Checklist", "Sources", "Assistant", "Activity"] as Tab[]).map((t, i) => (
             <button
               key={t}
               className={tab === t ? "nav-link active" : "nav-link"}
               onClick={() => navigate(t)}
               aria-current={tab === t ? "page" : undefined}
             >
-              <Icon name={["book", "evidence", "check", "source", "activity"][i]} />
+              <Icon name={["book", "evidence", "check", "source", "assistant", "activity"][i]} />
               <span>{t}</span>
               {t === "Evidence" && pending > 0 && <span className="count">{pending}</span>}
             </button>
@@ -433,7 +464,7 @@ function App() {
             <span className="status-dot" />
             Private notebook
           </span>
-          <p>Manage your Bee connection in Sources. Every import keeps its origin.</p>
+          <p>Keep the reasoning here. Connect a compatible assistant when you want help reviewing it.</p>
         </div>
         <div className="account">
           <span className="avatar">{user.name.slice(0, 1).toUpperCase()}</span>
@@ -671,6 +702,8 @@ function App() {
                         ? "The work that follows."
                         : tab === "Sources"
                           ? "Keep the original words."
+                          : tab === "Assistant"
+                            ? "A second look, on your terms."
                           : "A record of your judgment."}
                 </h1>
                 <p>
@@ -683,10 +716,12 @@ function App() {
                         ? "Checklist changes are proposed first. Nothing is replaced without your approval."
                         : tab === "Sources"
                           ? "Keep each source’s origin and processed context. Check the words before you act on them."
+                          : tab === "Assistant"
+                            ? "Give an MCP client scoped access to this notebook, then keep each decision in your hands."
                           : "Every decision, review, and approved change keeps a place in the notebook."}
                 </p>
               </div>
-              <button
+              {tab !== "Assistant" && <button
                 className="primary"
                 disabled={busy}
                 onClick={() =>
@@ -709,7 +744,7 @@ function App() {
                     : tab === "Evidence"
                       ? "Link evidence"
                       : "Import transcript"}
-              </button>
+              </button>}
             </div>
             {tab === "Decisions" && (
               <div className="journal-grid">
@@ -1150,6 +1185,14 @@ function App() {
                 )}
               </section>
             )}
+            {tab === "Assistant" && (
+              <AssistantConnection
+                key={`${viewKey}:${renderedEpoch}`}
+                api={api}
+                isCurrentView={isCurrentView}
+                project={project}
+              />
+            )}
             {tab === "Activity" && (
               <section className="activity-page">
                 {[...project.audit].reverse().map((a) => (
@@ -1226,7 +1269,7 @@ function Auth({
             </div>
           </div>
           <p className="auth-footnote">
-            Use manual records or connect your private Bee account. AWS remains disconnected.
+            Record decisions yourself, import optional Bee context, or review them through an MCP assistant connection.
           </p>
         </section>
         <section className="auth-form">

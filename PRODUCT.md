@@ -3,7 +3,7 @@
 ## Platform
 web
 ## Stack
-Delegated implementation: React, TypeScript and Vite; Node 22 built-in SQLite. Private single-server deployment before AWS or Bee account access.
+Delegated implementation: React, TypeScript and Vite; Node 22 built-in SQLite. Private single-server deployment with a scoped Streamable HTTP MCP connection.
 ## Users
 Software builders revisiting decisions made in conversation when later evidence changes an assumption.
 ## Product Purpose
@@ -11,7 +11,7 @@ Remember what would make you change your mind. Preserve original rationale, atta
 ## Operating Context
 Approved 7 September 2026 brief in ../reopen-build-brief.md. User authorized all agreed projects and autonomous continuation on 8 September. No further concept interview is needed.
 ## Capabilities and Constraints
-Manual transcript imports carry immutable provenance. Decision activation and checklist edits require explicit owner approval. The owner-bound Bee CLI connector is implemented and fixture-tested; real Bee or Apple Watch data remains unverified. AWS remains disconnected. No autonomous code writes. No claim of verified external reality based on someone's statement.
+Manual transcript imports carry immutable provenance. Decision activation and checklist edits require explicit owner approval. The owner-bound Bee CLI connector is implemented and fixture-tested; real Bee or Apple Watch data remains unverified. Alexa+ track uses an actual browser MCP client with no physical device requirement. AWS remains disconnected. Assistant tools may save unapproved drafts only after owner reopening; owner approval remains separate. No autonomous code writes. No claim of verified external reality based on someone's statement.
 ## Brand Commitments
 Warm editorial decision notebook. Precise, human, restrained. Code-led design requested by user. Do not use generated mockups as an approval gate.
 ## Evidence on Hand

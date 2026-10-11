@@ -166,6 +166,8 @@ function App() {
     [filter, setFilter] = useState("all"),
     [trail, setTrail] = useState<{ id: string; version?: number } | null>(null);
   const [sourceChecks, setSourceChecks] = useState<Record<string, boolean>>({});
+  const [failedLoad, setFailedLoad] = useState("");
+  const [notebookLoading, setNotebookLoading] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
   const notebookHeading = useRef<HTMLHeadingElement>(null);
   const viewEpoch = useRef(0);
@@ -191,13 +193,23 @@ function App() {
   async function loadProject(id: string) {
     const epoch = ++viewEpoch.current;
     setError("");
+    setNotice("");
+    setFailedLoad("");
+    setNotebookLoading(true);
     try {
       const result = await api("/projects/" + id);
-      if (epoch !== viewEpoch.current) return;
+      if (epoch !== viewEpoch.current) return false;
       setProject(result.project);
+      setFailedLoad("");
       localStorage.setItem("reopen:last-notebook", id);
     } catch (e) {
-      if (epoch === viewEpoch.current) setError((e as Error).message);
+      if (epoch === viewEpoch.current) {
+        setFailedLoad(id);
+        setError((e as Error).message);
+      }
+      return false;
+    } finally {
+      if (epoch === viewEpoch.current) setNotebookLoading(false);
     }
   }
   useEffect(() => {
@@ -241,14 +253,17 @@ function App() {
     const operation = ++operationEpoch.current;
     setBusy(true);
     setError("");
+    setNotice("");
     try {
       if ((await action()) === false || interaction !== interactionEpoch.current ||
         operation !== operationEpoch.current) return;
       setNotice(message);
       if (close) setPanel(null);
     } catch (e) {
-      if (interaction === interactionEpoch.current && operation === operationEpoch.current)
+      if (interaction === interactionEpoch.current && operation === operationEpoch.current) {
+        setFailedLoad("");
         setError((e as Error).message);
+      }
     } finally {
       if (operation === operationEpoch.current) setBusy(false);
     }
@@ -281,6 +296,7 @@ function App() {
       const r = await api("/projects", "POST", data);
       if (!isCurrentView()) return false;
       setProject(r.project);
+      setFailedLoad("");
       localStorage.setItem("reopen:last-notebook", r.project.id);
       setProjects((current) => [...current, projectSummary(r.project)]);
       setTab("Decisions");
@@ -294,6 +310,7 @@ function App() {
     setPanel({ type, decision });
     setTrail(null);
     setError("");
+    setFailedLoad("");
     setMobile(false);
   };
   const navigate = (t: Tab) => {
@@ -302,6 +319,7 @@ function App() {
     setTab(t);
     setPanel(null);
     setError("");
+    setFailedLoad("");
     setMobile(false);
   };
   const candidate = project?.candidates.find((c) => c.id === selected);
@@ -333,12 +351,14 @@ function App() {
         submit={(data, mode) =>
           perform(async () => {
             viewEpoch.current++;
+            setFailedLoad("");
+            setNotebookLoading(false);
             const s = await api("/" + mode, "POST", data);
             setUser(s.user);
             setCsrf(s.csrf);
             const r = await api("/projects");
             setProjects(r.projects);
-            if (r.projects[0]) await loadProject(r.projects[0].id);
+            if (r.projects[0]) return loadProject(r.projects[0].id);
           }, "Your private notebook is ready.")
         }
       />
@@ -389,7 +409,7 @@ function App() {
               </option>
             ))}
           </select>
-          <button className="text-button" onClick={() => openPanel("project")}>
+          <button className="text-button" disabled={busy && !project} onClick={() => openPanel("project")}>
             <Icon name="plus" size={15} />
             New notebook
           </button>
@@ -431,9 +451,12 @@ function App() {
             onClick={() =>
               perform(async () => {
                 viewEpoch.current++;
+                setNotebookLoading(false);
                 await api("/logout", "POST", {});
                 setUser(null);
                 setProject(null);
+                setFailedLoad("");
+                setNotebookLoading(false);
                 setProjects([]);
                 setCsrf("");
               }, "Signed out.")
@@ -477,13 +500,20 @@ function App() {
         </div>
         {error && (
           <div role="alert" className="alert">
-            <strong>We couldn’t save that.</strong>
+            <strong>We couldn’t complete that request.</strong>
             <span>{error}</span>
             <button
               className="text-button"
               onClick={() => {
                 setError("");
-                if (project) loadProject(project.id);
+                const id = failedLoad || project?.id;
+                if (id && id !== project?.id) {
+                  interactionEpoch.current++;
+                  setPanel(null);
+                  setSelected("");
+                  setTrail(null);
+                }
+                if (id) void perform(() => loadProject(id), "Notebook refreshed.");
               }}
             >
               Refresh latest
@@ -526,6 +556,7 @@ function App() {
                       });
                       if (!isCurrentView()) return false;
                       setProject(null);
+                      setFailedLoad("");
                       setProjects((current) => current.filter((p) => p.id !== project?.id));
                     },
                     "Notebook deleted.",
@@ -535,10 +566,13 @@ function App() {
                   return perform(
                     async () => {
                       viewEpoch.current++;
+                      setNotebookLoading(false);
                       await api("/account", "DELETE", data);
                       setUser(null);
                       setProject(null);
                       setProjects([]);
+                      setFailedLoad("");
+                      setNotebookLoading(false);
                     },
                     "Account and notebooks deleted.",
                     true,
@@ -574,6 +608,14 @@ function App() {
               window.scrollTo({ top: 0, behavior: "instant" });
             }}
           />
+        ) : !project && projects.length > 0 ? (
+          <Empty title={notebookLoading ? "Opening your notebook…" : "Your notebook hasn’t opened yet."}>
+            {notebookLoading
+              ? "Your saved notebooks are being loaded."
+              : error && failedLoad
+                ? "Choose a notebook from the list or retry the failed request with Refresh latest."
+                : "Choose a notebook from the list to open your saved work."}
+          </Empty>
         ) : !project ? (
           <div className="welcome">
             <div className="welcome-copy">
@@ -585,12 +627,13 @@ function App() {
               </h1>
               <p>Keep what you decided, why it made sense, and what would make you reconsider.</p>
               <div className="actions">
-                <button className="primary" onClick={() => openPanel("project")}>
+                <button className="primary" disabled={busy} onClick={() => openPanel("project")}>
                   Create your first notebook
                   <Icon name="arrow" />
                 </button>
                 <button
                   className="text-button"
+                  disabled={busy}
                   onClick={() =>
                     perform(
                       () => createProject({ illustrative: true }),

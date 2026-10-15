@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { createBeeAdapter, conversationId } from "./adapters.mjs";
 import { fail, importBeeSources, Problem } from "./domain.mjs";
 
-export function createBeeRoutes({ db, proxyUrl, ownerId, fetchImpl }) {
-  const adapter = createBeeAdapter({ proxyUrl, fetchImpl, fixture: Boolean(fetchImpl) });
+export function createBeeRoutes({ db, proxyUrl, apiToken, ownerId, fetchImpl }) {
+  const adapter = createBeeAdapter({ proxyUrl, apiToken, fetchImpl, fixture: Boolean(fetchImpl) });
   db.exec(
     "CREATE TABLE IF NOT EXISTS bee_connections (owner_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE, document TEXT NOT NULL)",
   );
@@ -30,8 +30,8 @@ export function createBeeRoutes({ db, proxyUrl, ownerId, fetchImpl }) {
       lastImport: s.lastImport || null,
       fixture: adapter.fixture,
       reason: configured
-        ? "The official Bee CLI handles authorization on this server."
-        : "The operator must configure the official Bee proxy and bind it to your Reopen account ID.",
+        ? "Bee authorization is configured privately on this server."
+        : "The operator must configure a Bee token or loopback proxy and bind it to your Reopen account ID.",
       accountId: id,
     };
   }

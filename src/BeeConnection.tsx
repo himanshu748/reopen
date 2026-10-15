@@ -161,14 +161,14 @@ export default function BeeConnection({
         <details className="bee-setup">
           <summary>Set up a private connection</summary>
           <p>
-            Enable Developer Mode in Bee, sign in with the official Bee CLI, and run its loopback
-            proxy on this server. The operator then binds that proxy to your account. No Bee
-            credentials go into this page.
+            The operator configures a private Bee API token on the server, or signs in with the
+            official Bee CLI and runs its loopback proxy. That connection is bound to your account.
+            No Bee credentials go into this page.
           </p>
           <p>Reopen account ID</p>
           <code>{status.accountId}</code>
           <p>
-            <a href="https://docs.bee.computer/docs/proxy" target="_blank" rel="noreferrer">
+            <a href="https://docs.bee.computer/docs/api" target="_blank" rel="noreferrer">
               Official Bee setup instructions ↗
             </a>
           </p>

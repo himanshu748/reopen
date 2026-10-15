@@ -532,7 +532,7 @@ export function importBeeSources(original, sources, expectedVersion) {
       provenance:
         origin === "bee_fixture"
           ? "Explicit connector test fixture. Not recorded by Bee and not hackathon device evidence."
-          : "Retrieved through the official Bee CLI proxy. Processed ASR can contain errors; compare Bee context before confirming a decision. Device type is provider-reported, not independently verified.",
+          : `Retrieved through ${incoming.provider.transport === "official_public_api" ? "the official Bee public API" : "the official Bee CLI proxy"}. Processed ASR can contain errors; compare Bee context before confirming a decision. Device type is provider-reported, not independently verified.`,
       externalId: `bee conversations get ${incoming.provider.conversationId}`,
       projectLabel: "",
       beeVerified: false,
@@ -548,7 +548,7 @@ export function importBeeSources(original, sources, expectedVersion) {
   audit(
     p,
     "bee_import_checked",
-    `${receipt.added} new; ${receipt.revised} revised; ${receipt.unchanged} unchanged. ${sources[0]?.provider.transport === "test_fixture" ? "Explicit test fixture transport." : "Selected processed conversations retrieved through Bee CLI proxy."}`,
+    `${receipt.added} new; ${receipt.revised} revised; ${receipt.unchanged} unchanged. ${sources[0]?.provider.transport === "test_fixture" ? "Explicit test fixture transport." : "Selected processed conversations retrieved through the official Bee API transport."}`,
   );
   p.version++;
   p.updatedAt = now();

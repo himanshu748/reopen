@@ -1,12 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
-import { scryptSync } from "node:crypto";
+import { scryptSync, randomBytes } from "node:crypto";
 import { createApp } from "../server/index.mjs";
 import { createBeeAdapter } from "../server/adapters.mjs";
 import { baseline, later, conversation, fixtureFetch } from "./bee-fixtures.mjs";
 const ORIGIN = "http://localhost";
-const PASSWORD = "Fixture-private-bee-2026";
+// Ephemeral synthetic account secret, not a Bee credential.
+const PASSWORD = randomBytes(24).toString("base64url");
 async function setup(t, override) {
   const calls = [],
     records = new Map([
@@ -376,4 +377,22 @@ test("Bee distinguishes oversized processed transcripts from unavailable ones", 
   });
   await assert.rejects(() => adapter.detail(101), (error) =>
     error.status === 413 && /3,000|too large/.test(error.message));
+});
+
+
+test("public Bee credentials stay on the fixed HTTPS endpoint and never follow redirects", async () => {
+  const credential = "synthetic_public_bee_contract_token";
+  const calls = [];
+  const adapter = createBeeAdapter({ apiToken: credential, fixture: true,
+    fetchImpl: async (url, options) => {
+      calls.push({ url: String(url), options });
+      return new Response(JSON.stringify({ conversations: [], next_cursor: "" }), { headers: { "content-type": "application/json" } });
+    } });
+  assert.deepEqual((await adapter.list()).conversations, []);
+  assert.equal(new URL(calls[0].url).origin, "https://api.developer.bee.amazon.dev");
+  assert.equal(calls[0].options.headers.Authorization, `Bearer ${credential}`);
+  assert.equal(calls[0].options.redirect, "error");
+  assert.equal(calls[0].url.includes(credential), false);
+  assert.throws(() => createBeeAdapter({ apiToken: credential, proxyUrl: "http://127.0.0.1:8787" }), /Choose/);
+  assert.throws(() => createBeeAdapter({ apiToken: "bad\r\nAuthorization" }), /invalid/);
 });

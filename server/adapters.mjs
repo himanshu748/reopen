@@ -30,8 +30,15 @@ function timestamp(value) {
     fail("Bee returned a missing or invalid conversation timestamp.", 502);
   return new Date(value).toISOString();
 }
-export function createBeeAdapter({ proxyUrl, fetchImpl = fetch, fixture = false } = {}) {
+export function createBeeAdapter({ proxyUrl, apiToken, fetchImpl = fetch, fixture = false } = {}) {
   let base;
+  if (apiToken && proxyUrl) throw new Error("Choose BEE_TOKEN or BEE_PROXY_URL, not both.");
+  if (apiToken) {
+    if (typeof apiToken !== "string" || apiToken.length < 20 || apiToken.length > 16384 || !/^[A-Za-z0-9._~+/=-]+$/.test(apiToken))
+      throw new Error("BEE_TOKEN is invalid; supply only the token through the environment.");
+    // Fixed official public endpoint; credentials can never follow a redirect.
+    base = new URL("https://api.developer.bee.amazon.dev/");
+  }
   if (proxyUrl) {
     try {
       base = new URL(proxyUrl);
@@ -53,13 +60,13 @@ export function createBeeAdapter({ proxyUrl, fetchImpl = fetch, fixture = false 
   }
   async function get(path) {
     if (!base)
-      fail("Bee is not configured. Ask the operator to connect the official Bee CLI proxy.", 503);
+      fail("Bee is not configured. Set a server-side BEE_TOKEN or connect the official loopback proxy.", 503);
     try {
       const response = await fetchImpl(new URL(path, base), {
         method: "GET",
         redirect: "error",
         signal: AbortSignal.timeout(10000),
-        headers: { Accept: "application/json" },
+        headers: { Accept: "application/json", ...(apiToken ? { Authorization: `Bearer ${apiToken}` } : {}) },
       });
       if (!response.ok) {
         if (response.status === 404)
@@ -100,7 +107,7 @@ export function createBeeAdapter({ proxyUrl, fetchImpl = fetch, fixture = false 
     } catch (error) {
       if (error instanceof Problem) throw error;
       fail(
-        "Cannot reach Bee. Check that the authenticated local Bee proxy is running, then retry.",
+        "Cannot reach Bee. Check the server-side token or authenticated local Bee proxy, then retry.",
         502,
       );
     }
@@ -197,7 +204,7 @@ export function createBeeAdapter({ proxyUrl, fetchImpl = fetch, fixture = false 
       transcriptionId: Number.isSafeInteger(transcription.id) ? transcription.id : null,
       fetchedAt: new Date().toISOString(),
       updatedAt: typeof c.updated_at === "number" ? timestamp(c.updated_at) : null,
-      transport: fixture ? "test_fixture" : "official_cli_proxy",
+      transport: fixture ? "test_fixture" : apiToken ? "official_public_api" : "official_cli_proxy",
     };
     // Identity includes processed context and date; fetchedAt is a receipt, not content.
     const digest = createHash("sha256")

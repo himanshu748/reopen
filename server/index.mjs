@@ -29,6 +29,7 @@ export async function createApp(options = {}) {
   const beeRoutes = createBeeRoutes({
     db,
     proxyUrl: options.beeProxyUrl ?? process.env.BEE_PROXY_URL,
+    apiToken: options.beeApiToken ?? process.env.BEE_TOKEN,
     ownerId: options.beeOwnerId ?? process.env.REOPEN_BEE_OWNER_ID,
     fetchImpl: options.beeFetch,
   });

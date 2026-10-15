@@ -1,3 +1,5 @@
+> 15 October: [the Docker/Caddy HTTPS judge stack](deploy/JUDGE-HTTPS.md) verifies a real external official-SDK client without an owner-only hosted login. [The 2:40 demo script](DEMO-SCRIPT.md) leads with the MCP workflow. Bee remains unverified.
+
 # Try Reopen: decisions that can change without losing their reasons
 
 Reopen's Alexa+ track entry adds a real Streamable HTTP MCP server and browser client to a private decision notebook. No Bee device, Echo, hosted account or paid AI key is needed to run the core demo.

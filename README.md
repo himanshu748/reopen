@@ -4,6 +4,21 @@
 
 A private decision notebook: preserve a decision’s rationale, review later evidence against its assumptions, and approve an exact downstream checklist change. React/TypeScript UI; Node 22 SQLite backend. A notebook-scoped MCP connection lets an assistant read the original reasoning and later evidence, then save an unapproved checklist proposal after the owner reopens the decision.
 
+## Alexa+ MCP judging path
+
+The runtime imports `McpServer` and `StreamableHTTPServerTransport` from the official MCP SDK and calls them in `server/mcp-routes.mjs`. It exposes four implemented notebook tools at `/mcp`, negotiates **2025-11-25**, and checks notebook grants, Origin, expiry and revocation. `scripts/judge-mcp.mjs` uses the official `Client` and `StreamableHTTPClientTransport` against a running endpoint; it verifies initialize, discovery, actual tool reads and denial after revocation. This is a self-hosted MCP implementation, not a claim of Alexa+ console distribution or an Echo-device test.
+
+Use [the HTTPS Docker judge stack](deploy/JUDGE-HTTPS.md), or [the fresh local-account UI path](JUDGE-GUIDE.md). Both avoid an owner-only hosted login. The HTTPS stack uses a local Caddy CA that the verification client explicitly trusts, with certificate and hostname validation enabled; no TLS bypass. It is local deployment, not a public internet endpoint. [MCP Streamable HTTP specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
+
+**Demo video (owner to fill): replacement video link pending.** Follow [the 2:40 MCP demo script](DEMO-SCRIPT.md), upload it yourself, and replace this explicit placeholder with the actual link. No upload or submission form was touched in this pass.
+
+| Project | Primary user | Job |
+| --- | --- | --- |
+| Reopen | A project lead reviewing a prior decision | Preserve rationale over time, compare later evidence, reopen deliberately and approve an exact checklist consequence. |
+| Understudy | An equipment-lending policy author/operator | Rehearse incoming requests against instruction gaps before using the policy. |
+
+[MIT license](LICENSE) · [Observed friction](FRICTION.md) · [Owner-editable product feedback draft](PRODUCT-FEEDBACK.md)
+
 ## Run
 
 ```sh
@@ -53,7 +68,7 @@ NODE_ENV=production APP_ORIGIN=https://reopen.example.com HOST=0.0.0.0 PORT=4333
 
 The production entrypoint refuses to start without `APP_ORIGIN`. Bind public traffic only behind TLS. Grant the application user write access only to the database directory. Persist the SQLite database and its WAL/SHM side files on the same local volume. Use SQLite’s online backup API or stop the server before copying the full database; do not copy a live database file alone. Check `/api/health` for process health without exposing user data.
 
-Docker configuration is supplied, but Docker is not installed in this workspace, so the image has not been built here.
+The reproducible [local HTTPS judge deployment](deploy/JUDGE-HTTPS.md) includes Docker Compose, Caddy and an external official-SDK MCP check. Its deployment receipt records executed results separately from configuration; no persistent public hosting is claimed.
 
 Docker example:
 
@@ -96,7 +111,11 @@ Unapproved checklist proposals show a recovery notice when the linked decision o
 
 ## Connect real Bee conversations
 
-The integration uses the official [Bee CLI loopback proxy](https://docs.bee.computer/docs/proxy). Authenticate the CLI on the same trusted machine as this Node process, then run `bee proxy --port 8787`. Keep that unauthenticated proxy bound to loopback. Reopen uses fixed read endpoints only; it never forwards browser-provided URLs or writes to Bee.
+The connector supports the official [Bee public API](https://docs.bee.computer/docs/api) at a fixed HTTPS origin with server-only `BEE_TOKEN`, or the official Bee CLI loopback proxy. Never set both `BEE_TOKEN` and `BEE_PROXY_URL`. Bind either transport to your existing `REOPEN_BEE_OWNER_ID`; no browser can choose its upstream URL. Tokens come only from the process environment, are never returned to the browser, and cannot follow a redirect.
+
+To import selected real conversations after connecting credentials, use `npm run bee:import-real` with your existing database, owner/notebook IDs and 1–5 explicit conversation IDs. [Exact setup and dated counts/IDs-only receipt](BEE-VERIFICATION.md). Real data/device use remains **unverified** until that run and independent device evidence exist. A successful API receipt alone cannot certify the recording hardware.
+
+For the proxy option: Authenticate the CLI on the same trusted machine as this Node process, then run `bee proxy --port 8787`. Keep that unauthenticated proxy bound to loopback. Reopen uses fixed read endpoints only; it never forwards browser-provided URLs or writes to Bee.
 
 1. Create your Reopen account. Open a notebook → Sources → **Set up a private connection** and copy your Reopen account ID.
 2. Set `BEE_PROXY_URL=http://127.0.0.1:8787` and `REOPEN_BEE_OWNER_ID=<that account ID>` in the Node server environment, then restart Reopen. `.env.example` is documentation; the server does not automatically load `.env` files. The proxy is available only to that exact account ID, never an unverified email or every registered user.
@@ -108,7 +127,7 @@ The official [conversation resource implementation](https://github.com/bee-compu
 
 Each request is explicit, time bounded and size limited. Last-checked time, sanitized errors and import counts persist privately. A missing/deleted upstream conversation produces an error without erasing local evidence. A failed selection batch writes no source records. A notebook edited during retrieval rejects the stale import. Disconnect invalidates in-flight work, stops future reads and retains previous notebook copies. Deleting the notebook or account deletes active local copies; original Bee records, prior exports and operator backups remain separate.
 
-This connector is for one operator’s Bee account on a trusted local host. It is **not** a multi-user Bee OAuth service. A generic Docker container cannot reach a host-side loopback proxy through `127.0.0.1`; run Node beside the official CLI for the integration, or design a separate authenticated deployment transport. Do not expose the proxy or relax the loopback restriction. No Bee token is stored by Reopen or sent to the browser.
+This connector is for one operator’s Bee account on a trusted local host. It is **not** a multi-user Bee OAuth service. For the proxy mode, a generic Docker container cannot reach a host-side loopback proxy through `127.0.0.1`; run Node beside the official CLI for the integration, or design a separate authenticated deployment transport. Do not expose the proxy or relax the loopback restriction. A public-API token exists only in the server environment; proxy mode leaves authentication to the CLI. Neither token is stored in SQLite or sent to the browser.
 
 ## Alexa+ track: a real MCP client, no device required
 

@@ -1,31 +1,24 @@
-# Real Bee verification
+# Real Bee import and evidence boundary
 
-Reopen is ready for a local rehearsal using explicitly labeled fixtures. Real Bee or Apple Watch recording and processing have **not** been verified. A manual upload, an API fixture or a provider-reported device label does not close that gap.
+**Unverified:** no real Bee account/device data was available for this repair pass. The connector remains optional for the Alexa+ MCP entry. Manual/illustrative sources never count as Bee data, and importing official API data does not independently certify a recording device.
 
-**Local readiness status — 29 September 2026:** the user confirmed they have no Bee device or Apple Watch access. Reopen therefore cannot currently satisfy the track's real-device-data requirement. Keep it as a tested local prototype; do not submit it as a verified Bee entry. The steps below apply only if access becomes available.
+The current [official API guide](https://docs.bee.computer/docs/api) documents the public HTTPS endpoint `https://api.developer.bee.amazon.dev` with Bearer authentication, plus the CLI loopback proxy. Reopen supports both. It fixes the public host in server code, follows no redirects, bounds responses and reads only conversation endpoints. Never expose the unauthenticated loopback proxy to the internet.
 
-## Before connecting
+## Owner steps (about 15–30 minutes)
 
-1. Record two short, consenting conversations with a Bee device or the Bee Apple Watch app. The first should contain a decision and its assumption; the later one should clearly revise that assumption. It is fine to stage a demo if the video says so. Avoid names or private details that are not needed for the demonstration.
-2. Let Bee process both recordings. Confirm in Bee that each has a finalized transcript and generated context. Keep a short capture of the actual recording/processing path to establish how these records were produced.
-3. On the same trusted machine as Reopen, authenticate the official Bee CLI and run `bee proxy --port 8787`. Follow the [official proxy instructions](https://docs.bee.computer/docs/proxy). Keep the proxy on loopback; never publish it.
-4. Create a Reopen account, open Sources → Set up a private connection, and copy that account ID. Start Reopen with `BEE_PROXY_URL=http://127.0.0.1:8787` and `REOPEN_BEE_OWNER_ID` set to that ID. The server does not read `.env` automatically. Do not put credentials in the browser, repository or demo recording.
+1. Record an authorized real conversation using a Bee device or an Apple Watch running Bee. Wait for processing; keep a separate device/app recording or screenshot establishing the recording source. Do not import other people's private conversations without permission.
+2. Authenticate through Bee yourself. If using the [official CLI](https://docs.bee.computer/docs/cli), use `bee login` or its documented token-stdin flow. For direct API access, provide the authorized token as `BEE_TOKEN` in the environment. For proxy mode, run `bee proxy --port 8787` and set `BEE_PROXY_URL=http://127.0.0.1:8787`. Never configure both.
+3. Create your own local Reopen account/notebook. Sources shows your account ID; the selected notebook ID is in its URL. Choose 1–5 actual processed conversation IDs from Bee. Keep all content private.
+4. Set these environment variables in your own terminal: `DATA_PATH` (absolute path to that existing SQLite database), `REOPEN_BEE_OWNER_ID`, `REOPEN_BEE_PROJECT_ID`, `BEE_CONVERSATION_IDS` (comma-separated positive IDs), and either `BEE_TOKEN` or `BEE_PROXY_URL`. The script does not read credentials from a file or command argument. Review consent and the selected IDs before invoking it.
 
-## Verify the complete decision flow
+```sh
+npm run bee:import-real
+```
 
-1. Create a notebook and a checklist item. In Sources, grant the browsing consent and connect. Select only the first real conversation, then approve saving it.
-2. Open the saved source. Compare Bee's context with the original transcript, note its conversation ID and retrieval time, then create a decision anchored to the checklist item. Confirm the wording and explicitly activate the decision.
-3. Import the later conversation. Open its evidence next to the original rationale. Record the owner's judgment, reopen the decision, draft an exact checklist replacement, and approve that replacement separately.
-4. Re-import the same later conversation. An unchanged record should report `0 new · 0 revised · 1 unchanged`. Open decision history and verify the original wording and the approved before/after checklist record.
-5. Disconnect and refresh the page. The private notebook keeps both imported sources and its audit history. Record the completed flow in a public demo under the event's video limit; publish only consented, sanitized content.
+The script retrieves the selected conversations through native fetch and the production adapter, checks processed context/transcripts, imports actual sources into the owner-scoped notebook with an atomic version precondition, and saves `.impeccable/review/bee-receipts/<UTC>.json` with **date, IDs and counts only**. It logs no transcript, title, summary, token, signed URL or account credentials. Repeating unchanged content is deduplicated; changed content becomes a preserved source revision. If the notebook changes while retrieval is running, the update is rejected.
 
-If Bee is still processing, wait and refresh. If authorization expires, sign in again through the official CLI. An unavailable conversation or failed selection batch must leave existing evidence intact. Do not replace a failed live step with fixtures without labeling that change.
+5. Inspect the private notebook and receipt. Review the exact original source quote, create/confirm a decision, import actual later evidence, reopen and approve a checklist consequence. Keep a separate truthful hardware-origin record; `beeVerified` remains false and device type is only provider-reported. Publish a sanitized receipt or footage only after your own review.
 
-## Evidence to retain privately
+For the UI connection, set the same Bee transport and `REOPEN_BEE_OWNER_ID` in the running Node server environment before startup; import permission remains explicit in Sources. The Docker HTTPS judging stack leaves Bee unconfigured by default, so it never silently receives credentials from the host.
 
-- Date, device/app used, and the user's confirmation that both selected recordings were made and processed through Bee.
-- The two returned conversation IDs and retrieval timestamps, plus the unchanged-import receipt.
-- A capture of original rationale, later evidence, owner judgment, separate checklist approval and decision history.
-- The source commit and test results used for the recording.
-
-An exported notebook contains private transcripts. Keep the full export private unless everyone represented has agreed to publication. Reopen's transport receipt proves what the connector retrieved; the recording/processing capture establishes the device workflow separately. Eligibility and submission acceptance remain organizer decisions.
+No real import receipt is bundled, because no real import has been run. Contract tests use explicit synthetic fixtures and retain `bee_fixture` provenance. After two identical blocking failures, stop, record the cause/owner action in FRICTION.md and resolve the account/provider prerequisite before retrying.

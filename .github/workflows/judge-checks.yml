@@ -31,3 +31,35 @@ jobs:
           node tests/browser-save-race.mjs
           node tests/browser-operation-race.mjs
           node tests/browser-load-recovery.mjs
+
+  https-mcp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Create ephemeral judge password in environment
+        run: |
+          python3 - <<'PYTHON'
+          import os, secrets
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write('REOPEN_JUDGE_PASSWORD=' + secrets.token_urlsafe(32) + '\n')
+          PYTHON
+      - name: Deploy real HTTPS stack and call official MCP client
+        run: npm run judge:https
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: reopen-https-mcp-receipt
+          path: |
+            .judge/mcp-receipt.json
+            .judge/https-health.json
+          include-hidden-files: true
+          if-no-files-found: warn
+      - name: Stop disposable CI stack
+        if: always()
+        run: docker compose -f compose.judge.yaml down --volumes

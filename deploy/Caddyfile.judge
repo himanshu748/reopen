@@ -1,0 +1,8 @@
+{
+  auto_https disable_redirects
+  skip_install_trust
+}
+https://localhost:8443 {
+  tls internal
+  reverse_proxy app:4333
+}

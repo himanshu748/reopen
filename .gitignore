@@ -5,3 +5,7 @@ data/
 .env
 *.sqlite*
 .impeccable/
+
+.judge/
+.env.*
+!.env.example

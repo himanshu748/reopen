@@ -14,4 +14,4 @@ Record actual running app/client footage. The demo uses the clearly labeled fict
 | 2:15–2:30 | History and revoked connection denial | The earlier rationale stays intact; revoked assistant access stops working. |
 | 2:30–2:40 | HTTPS client receipt and honest boundaries | Local Docker/Caddy HTTPS is reproducible. Bee is optional and unverified; there is no AWS model call. |
 
-Before filming, run `npm run judge:https` and [the UI judge path](JUDGE-GUIDE.md). The terminal receipt may show metadata only, never the secret. Keep total edited runtime below three minutes and preserve actual failures if they occur. The owner must fill the README's explicit video-link placeholder after upload.
+Before filming, run `npm run judge:https` and [the UI judge path](JUDGE-GUIDE.md). The terminal receipt may show metadata only, never the secret. Keep total edited runtime below three minutes and preserve actual failures if they occur. If a new recording replaces the submitted video, update the README and Devpost links together.

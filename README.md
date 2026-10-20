@@ -10,7 +10,7 @@ The runtime imports `McpServer` and `StreamableHTTPServerTransport` from the off
 
 Use [the HTTPS Docker judge stack](deploy/JUDGE-HTTPS.md), or [the fresh local-account UI path](JUDGE-GUIDE.md). Both avoid an owner-only hosted login. The HTTPS stack uses a local Caddy CA that the verification client explicitly trusts, with certificate and hostname validation enabled; no TLS bypass. It is local deployment, not a public internet endpoint. [MCP Streamable HTTP specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
 
-**Demo video (owner to fill): replacement video link pending.** Follow [the 2:40 MCP demo script](DEMO-SCRIPT.md), upload it yourself, and replace this explicit placeholder with the actual link. No upload or submission form was touched in this pass.
+Demo video: the [submitted 106-second demonstration](https://www.youtube.com/watch?v=sVsczDdiLa0), published 11 October and linked from the [Devpost entry](https://devpost.com/software/reopen-v26r3w). [The 2:40 MCP demo script](DEMO-SCRIPT.md) describes an optional longer recording that adds the local HTTPS judge stack.
 
 | Project | Primary user | Job |
 | --- | --- | --- |
